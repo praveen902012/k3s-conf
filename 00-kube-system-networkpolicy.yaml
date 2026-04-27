@@ -1,0 +1,111 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: intra-namespace
+  namespace: kube-system
+spec:
+  # Apply this policy to ALL pods in kube-system
+  podSelector: {}
+
+  # This policy controls only incoming traffic
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              # Allow traffic ONLY from kube-system namespace
+              # Reason: restrict system components to talk only among themselves
+              kubernetes.io/metadata.name: kube-system
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-coredns-ingress
+  namespace: kube-system
+spec:
+  # Apply only to CoreDNS pods
+  podSelector:
+    matchLabels:
+      k8s-app: kube-dns
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          # Allow traffic from ALL namespaces
+          # Reason: every pod in the cluster needs DNS resolution
+      ports:
+        - port: 53
+          protocol: TCP
+        - port: 53
+          protocol: UDP
+          # Only allow DNS traffic (TCP/UDP 53)
+          # Reason: restrict access strictly to DNS functionality
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-metrics-server
+  namespace: kube-system
+spec:
+  # Apply only to metrics-server pods
+  podSelector:
+    matchLabels:
+      k8s-app: metrics-server
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - {}
+      # Allow ALL incoming traffic from ANY source
+      # Reason: metrics-server is accessed by multiple components (HPA, kubectl top, controllers)
+      # Could be restricted further if needed, but open access ensures compatibility
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-svclbtraefik-ingress
+  namespace: kube-system
+spec:
+  # Apply to k3s service load balancer pods for Traefik
+  podSelector:
+    matchLabels:
+      svccontroller.k3s.cattle.io/svcname: traefik
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - {}
+      # Allow ALL incoming traffic
+      # Reason: these pods receive external traffic (LoadBalancer/NodePort)
+      # Blocking this would break ingress routing
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-traefik-ingress
+  namespace: kube-system
+spec:
+  # Apply to Traefik ingress controller pods
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - {}
+      # Allow ALL incoming traffic
+      # Reason: Traefik must accept both external and internal traffic to route requests
+      # Restricting this would break ingress functionality
+
+
+
+#The Outbound traffic (Egress) is still unrestricted for now
